@@ -1,5 +1,5 @@
 import TelegramBot from "node-telegram-bot-api";
-
+import pm2 from "pm2";
 // Initialize bot
 const bot = new TelegramBot("7876987617:AAGinjrq1w282tEujARUijOgY6Ocgy3o7R8", { polling: true });
 
