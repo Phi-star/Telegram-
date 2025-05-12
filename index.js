@@ -2,7 +2,7 @@ import TelegramBot from "node-telegram-bot-api";
 import pm2 from "pm2";
 
 // Initialize bot
-const bot = new TelegramBot("7739574932:AAHnQpeZR9obL8u7-oUdenZpIcSvTl5eZrY", { polling: true });
+const bot = new TelegramBot("7876987617:AAEtF8qDpiXSiytuaxE8RB7ZYJ3sebmoltk", { polling: true });
 
 // Admin user IDs to notify
 const ADMIN_IDS = [6300694007, 7279302614];
@@ -428,4 +428,4 @@ async function processInvestment(chatId, userId, plan) {
 }
 
 // Start the bot
-console.log("BDO Investment Bot is running...");
+console.log("BDO Investment Bot is running...")
