@@ -1,0 +1,17 @@
+{
+  "name": "phistar-loan-bot",
+  "version": "1.0.0",
+  "description": "A Telegram bot for Pag-IBIG Loan application.",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.61.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "author": "Saliu Philip Othuamho",
+  "license": "MIT"
+}
