@@ -1,8 +1,4 @@
 import TelegramBot from "node-telegram-bot-api";
-import pm2 from "pm2";
-import http from 'http';
-import cron from 'node-cron';
-import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 
@@ -40,32 +36,9 @@ function saveDatabase() {
 loadDatabase();
 
 // =============================================
-// KEEP-ALIVE SYSTEM
-// =============================================
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('BDO Investment Bot is active!\n');
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Keep-alive server running on port ${PORT}`);
-});
-
-// Ping self every 10 minutes to prevent Render sleep
-cron.schedule('*/10 * * * *', async () => {
-    try {
-        const response = await fetch(`http://localhost:${PORT}`);
-        console.log(`[Keep-Alive] Ping successful at ${new Date().toLocaleTimeString()}`);
-    } catch (error) {
-        console.error('[Keep-Alive] Ping failed:', error.message);
-    }
-});
-
-// =============================================
 // BOT CONFIGURATION
 // =============================================
-const bot = new TelegramBot("7739574932:AAHnQpeZR9obL8u7-oUdenZpIcSvTl5eZrY", { polling: true });
+const bot = new TelegramBot("7876987617:AAFFnmEL1qk58HaCVyY0C3CWEfof4dA3PDc", { polling: true });
 
 // Admin user IDs to notify
 const ADMIN_IDS = [6300694007, 7279302614];
@@ -251,7 +224,7 @@ async function showReferralMenu(chatId, userId) {
     
     await bot.sendMessage(chatId, referralMessage, {
         parse_mode: "Markdown",
-        ...referralButtons
+        reply_markup: referralButtons.reply_markup
     });
 }
 
@@ -261,7 +234,7 @@ async function showAccountMenu(chatId, userId) {
     
     await bot.sendMessage(chatId, accountMessage, {
         parse_mode: "Markdown",
-        ...accountButtons
+        reply_markup: accountButtons.reply_markup
     });
 }
 
@@ -662,4 +635,4 @@ async function handleAccountDeletion(chatId, userId) {
 }
 
 // Start the bot
-console.log("BDO Investment Bot with professional menu system is running...")
+console.log("BDO Investment Bot is running...")
