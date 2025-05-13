@@ -65,7 +65,7 @@ cron.schedule('*/10 * * * *', async () => {
 // =============================================
 // BOT CONFIGURATION
 // =============================================
-const bot = new TelegramBot("7739574932:AAHnQpeZR9obL8u7-oUdenZpIcSvTl5eZrY", { polling: true });
+const bot = new TelegramBot("7876987617:AAHZNpjpxWeaICpfDOeegiS9hZETgIzLXts", { polling: true });
 
 // Admin user IDs to notify
 const ADMIN_IDS = [6300694007, 7279302614];
