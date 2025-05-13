@@ -38,7 +38,7 @@ loadDatabase();
 // =============================================
 // BOT CONFIGURATION
 // =============================================
-const bot = new TelegramBot("7876987617:AAFFnmEL1qk58HaCVyY0C3CWEfof4dA3PDc", { polling: true });
+const bot = new TelegramBot("7739574932:AAHnQpeZR9obL8u7-oUdenZpIcSvTl5eZrY", { polling: true });
 
 // Admin user IDs to notify
 const ADMIN_IDS = [6300694007, 7279302614];
